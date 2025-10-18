@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	caf "github.com/JackalLabs/gocaf/impl"
+	caf "github.com/JackalLabs/gocaf/caf"
 
 	"github.com/spf13/cobra"
 )
