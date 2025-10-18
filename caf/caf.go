@@ -34,6 +34,10 @@ type CAFSerializer struct {
 	tempFile     bool
 }
 
+func NewTempCafSerializer(maxChunkSizeGB int) (*CAFSerializer, error) {
+	return NewCAFSerializer("", maxChunkSizeGB)
+}
+
 // NewCAFSerializer creates a new CAF serializer
 func NewCAFSerializer(outputPath string, maxChunkSizeGB int) (*CAFSerializer, error) {
 	if outputPath == "" {
