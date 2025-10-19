@@ -40,6 +40,7 @@ func NewTempCafSerializer(maxChunkSizeGB int) (*CAFSerializer, error) {
 
 // NewCAFSerializer creates a new CAF serializer
 func NewCAFSerializer(outputPath string, maxChunkSizeGB int) (*CAFSerializer, error) {
+	isTempFile := outputPath == ""
 	if outputPath == "" {
 		tempFile, err := createTempFile()
 		if err != nil {
@@ -63,7 +64,7 @@ func NewCAFSerializer(outputPath string, maxChunkSizeGB int) (*CAFSerializer, er
 		currentPos:   0,
 		fileIndex:    make(map[string]CAFFileMetadata),
 		maxChunkSize: maxChunkSize,
-		tempFile:     outputPath != "",
+		tempFile:     isTempFile,
 	}, nil
 }
 
@@ -76,6 +77,11 @@ func createTempFile() (string, error) {
 
 // AddFile adds a file to the CAF archive
 func (s *CAFSerializer) AddFile(filePath string, data []byte) (bool, error) {
+	// Check if writer is nil (already finalized or not properly initialized)
+	if s.writer == nil {
+		return false, fmt.Errorf("CAF serializer has already been finalized or was not properly initialized")
+	}
+
 	// Check if adding this file would exceed the chunk size limit
 	if s.currentPos+int64(len(data)) > s.maxChunkSize {
 		return false, nil
@@ -107,6 +113,11 @@ func (s *CAFSerializer) AddFile(filePath string, data []byte) (bool, error) {
 
 // AddFileFromReader adds a file to the CAF archive from a reader
 func (s *CAFSerializer) AddFileFromReader(filePath string, reader io.Reader, contentLength int64) (bool, error) {
+	// Check if writer is nil (already finalized or not properly initialized)
+	if s.writer == nil {
+		return false, fmt.Errorf("CAF serializer has already been finalized or was not properly initialized")
+	}
+
 	// Check if adding this file would exceed the chunk size limit
 	if s.currentPos+contentLength > s.maxChunkSize {
 		return false, nil
@@ -165,6 +176,11 @@ func (s *CAFSerializer) Cleanup() error {
 
 // Finalize completes the CAF archive by writing the index and footer
 func (s *CAFSerializer) Finalize() (string, error) {
+	// Check if writer is nil (already finalized or not properly initialized)
+	if s.writer == nil {
+		return "", fmt.Errorf("CAF serializer has already been finalized or was not properly initialized")
+	}
+
 	// Create the index
 	index := CAFIndex{
 		FormatVersion: "1.0",
@@ -204,8 +220,10 @@ func (s *CAFSerializer) Finalize() (string, error) {
 		return "", fmt.Errorf("failed to flush writer: %w", err)
 	}
 
-	if err := s.file.Close(); err != nil {
-		return "", fmt.Errorf("failed to close file: %w", err)
+	if s.file != nil {
+		if err := s.file.Close(); err != nil {
+			return "", fmt.Errorf("failed to close file: %w", err)
+		}
 	}
 
 	// Clear resources
@@ -242,6 +260,11 @@ func (s *CAFSerializer) GetMaxSize() int64 {
 // GetMaxSizeGB returns the current size limit in GB
 func (s *CAFSerializer) GetMaxSizeGB() float64 {
 	return float64(s.maxChunkSize) / (1024 * 1024 * 1024)
+}
+
+// IsValid checks if the serializer is in a valid state for operations
+func (s *CAFSerializer) IsValid() bool {
+	return s.writer != nil && s.file != nil
 }
 
 // CAFDeserializer reads files from CAF archive files
