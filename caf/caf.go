@@ -107,19 +107,12 @@ func (s *CAFSerializer) AddFile(filePath string, data []byte) (bool, error) {
 
 // AddFileFromReader adds a file to the CAF archive from a reader
 func (s *CAFSerializer) AddFileFromReader(filePath string, reader io.Reader, contentLength int64) (bool, error) {
-	fmt.Printf("CAF: Starting to add file stream: %s (%d bytes)\n", filePath, contentLength)
-	fmt.Printf("CAF: Current position: %d, Max size: %d\n", s.currentPos, s.maxChunkSize)
-
 	// Check if adding this file would exceed the chunk size limit
 	if s.currentPos+contentLength > s.maxChunkSize {
-		fmt.Printf("CAF: File %s would exceed size limit (%d > %d)\n", filePath, s.currentPos+contentLength, s.maxChunkSize)
 		return false, nil
 	}
 
 	startByte := s.currentPos
-	fmt.Printf("CAF: Adding file %s at position %d\n", filePath, startByte)
-
-	startTime := time.Now()
 
 	// Copy data from reader to writer
 	written, err := io.Copy(s.writer, reader)
@@ -132,11 +125,6 @@ func (s *CAFSerializer) AddFileFromReader(filePath string, reader io.Reader, con
 	}
 
 	endByte := s.currentPos + contentLength
-	duration := time.Since(startTime)
-	throughput := float64(contentLength) / 1024 / 1024 / duration.Seconds() // MB/s
-
-	fmt.Printf("CAF: Finished streaming %s in %v (%.2f MB/s)\n", filePath, duration, throughput)
-	fmt.Printf("CAF: File added to index: %d to %d\n", startByte, endByte)
 
 	// Add to index
 	s.fileIndex[filePath] = CAFFileMetadata{
@@ -145,8 +133,6 @@ func (s *CAFSerializer) AddFileFromReader(filePath string, reader io.Reader, con
 	}
 
 	s.currentPos = endByte
-	fmt.Printf("CAF: New position: %d\n", s.currentPos)
-
 	return true, nil
 }
 
@@ -179,10 +165,6 @@ func (s *CAFSerializer) Cleanup() error {
 
 // Finalize completes the CAF archive by writing the index and footer
 func (s *CAFSerializer) Finalize() (string, error) {
-	fmt.Printf("CAF: Starting finalization of %s\n", s.outputPath)
-	fmt.Printf("CAF: Final size: %d bytes\n", s.currentPos)
-	fmt.Printf("CAF: Total files: %d\n", len(s.fileIndex))
-
 	// Create the index
 	index := CAFIndex{
 		FormatVersion: "1.0",
@@ -195,7 +177,6 @@ func (s *CAFSerializer) Finalize() (string, error) {
 	}
 
 	indexSize := len(indexJSON)
-	fmt.Printf("CAF: Index size: %d bytes\n", indexSize)
 
 	// Write index
 	n, err := s.writer.Write(indexJSON)
@@ -226,10 +207,6 @@ func (s *CAFSerializer) Finalize() (string, error) {
 	if err := s.file.Close(); err != nil {
 		return "", fmt.Errorf("failed to close file: %w", err)
 	}
-
-	finalSize := s.currentPos + int64(indexSize) + 4
-	fmt.Printf("CAF: Successfully finalized %s\n", s.outputPath)
-	fmt.Printf("CAF: Final archive size: %d bytes\n", finalSize)
 
 	// Clear resources
 	s.writer = nil
